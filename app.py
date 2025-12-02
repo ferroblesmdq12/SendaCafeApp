@@ -1,33 +1,33 @@
 import streamlit as st
-from data.db import run_query_df
+import plotly.express as px
+from data.ventas_queries import (
+    get_ventas_hoy,
+    get_ventas_mes,
+    get_ticket_promedio_mes,
+    get_unidades_mes,
+    get_ventas_ultimos_30_dias,
+    get_ultimas_ventas
+)
 
-st.set_page_config(page_title="Senda Café - Debug", layout="wide")
+st.set_page_config(page_title="Senda Café", layout="wide")
 
-st.title("Debug Senda Café - Tablas")
+st.title("☕ Senda Café – Dashboard conectado a AWS RDS")
 
-st.subheader("Estructura de la tabla 'ventas'")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Ventas HOY", f"${get_ventas_hoy():,.0f}")
+col2.metric("Ventas MES", f"${get_ventas_mes():,.0f}")
+col3.metric("Ticket Promedio", f"${get_ticket_promedio_mes():,.0f}")
+col4.metric("Unidades MES", f"{int(get_unidades_mes()):,}")
 
-df_cols_ventas = run_query_df("""
-    SELECT column_name, data_type
-    FROM information_schema.columns
-    WHERE table_name = 'ventas'
-    ORDER BY ordinal_position;
-""")
-st.dataframe(df_cols_ventas, use_container_width=True)
+st.markdown("---")
 
-st.subheader("Primeras filas de 'ventas'")
-df_ventas = run_query_df("SELECT * FROM ventas LIMIT 5;")
-st.dataframe(df_ventas, use_container_width=True)
+st.subheader("📈 Ventas últimos 30 días")
+df = get_ventas_ultimos_30_dias()
+if df.empty:
+    st.info("Sin ventas en los últimos 30 días.")
+else:
+    fig = px.line(df, x="fecha", y="total", markers=True)
+    st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("Estructura de la tabla 'ventas_detalle'")
-df_cols_detalle = run_query_df("""
-    SELECT column_name, data_type
-    FROM information_schema.columns
-    WHERE table_name = 'ventas_detalle'
-    ORDER BY ordinal_position;
-""")
-st.dataframe(df_cols_detalle, use_container_width=True)
-
-st.subheader("Primeras filas de 'ventas_detalle'")
-df_detalle = run_query_df("SELECT * FROM ventas_detalle LIMIT 5;")
-st.dataframe(df_detalle, use_container_width=True)
+st.subheader("🧾 Últimas ventas")
+st.dataframe(get_ultimas_ventas(50), use_container_width=True)
