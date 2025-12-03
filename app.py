@@ -12,7 +12,7 @@ from data.ventas_queries import (
 )
 
 st.set_page_config(page_title="Senda Café", layout="wide")
-st.image("assets/Logo_cafe.png", width=120)
+st.image("assets/images/Logo_cafe.png", width=120)
 
 
 st.title("☕ Senda Café – Dashboard conectado a AWS RDS")
