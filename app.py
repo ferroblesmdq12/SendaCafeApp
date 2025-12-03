@@ -1,4 +1,5 @@
-from services.ui_helpers import mostrar_logo
+# from services.ui_helpers import mostrar_logo
+
 import streamlit as st
 import plotly.express as px
 from data.ventas_queries import (
@@ -11,6 +12,8 @@ from data.ventas_queries import (
 )
 
 st.set_page_config(page_title="Senda Café", layout="wide")
+st.image("assets/Logo_cafe.png", width=120)
+
 
 st.title("☕ Senda Café – Dashboard conectado a AWS RDS")
 
