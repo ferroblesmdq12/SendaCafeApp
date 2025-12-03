@@ -1,3 +1,4 @@
+# db.py
 # Conexión reutilizable + helper para DataFrames
 
 import psycopg2
