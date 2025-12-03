@@ -216,6 +216,6 @@ VALUES ('Camarero_Sistema', 'Camarero', NULL, 0, TRUE);
 SELECT id_empleado, nombre FROM empleados WHERE nombre = 'Camarero_Sistema';
 
 
-ve
+
 
 

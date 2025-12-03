@@ -95,16 +95,17 @@ def get_ventas_por_dia_ultimos_30():
 
 def get_stock_critico():
     """
-    Asumo columnas: productos(nombre, stock_actual, stock_minimo).
-    Si se llaman distinto, solo cambiá los nombres en el SELECT.
+    Productos con stock en o por debajo del mínimo,
+    usando la tabla stock + productos.
     """
     query = """
         SELECT 
-            nombre,
-            stock_actual,
-            stock_minimo
-        FROM productos
-        WHERE stock_actual <= stock_minimo
-        ORDER BY stock_actual ASC;
+            p.nombre,
+            s.stock_actual,
+            s.stock_minimo
+        FROM stock s
+        JOIN productos p ON p.id_producto = s.id_producto
+        WHERE s.stock_actual <= s.stock_minimo
+        ORDER BY s.stock_actual ASC;
     """
     return run_query_df(query)
