@@ -1,3 +1,4 @@
+from services.ui_helpers import mostrar_logo
 import streamlit as st
 import plotly.express as px
 from data.ventas_queries import (
