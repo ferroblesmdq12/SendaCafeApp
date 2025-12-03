@@ -1,9 +1,10 @@
-# ventas_queries.py
+# data/ventas_queries.py
 
-from data.db import run_query_df
 from data.db import run_query_df, get_connection
 
-
+# =========================
+# KPIs / Dashboard general
+# =========================
 
 def get_ventas_hoy():
     query = """
@@ -64,7 +65,6 @@ def get_ultimas_ventas(limit=50):
     return run_query_df(query)
 
 
-
 def get_top_productos_mes(limit=5):
     query = f"""
         SELECT 
@@ -114,7 +114,7 @@ def get_stock_critico():
 
 
 # =========================
-# Productos y empleados
+# Productos, empleados, stock
 # =========================
 
 def get_productos_con_stock():
@@ -135,23 +135,6 @@ def get_productos_con_stock():
     """
     return run_query_df(query)
 
-def get_stock_resumen():
-    """
-    Resumen de stock actual por producto.
-    """
-    query = """
-        SELECT 
-            p.id_producto,
-            p.nombre,
-            s.stock_actual,
-            s.stock_minimo
-        FROM stock s
-        JOIN productos p ON p.id_producto = s.id_producto
-        ORDER BY p.nombre;
-    """
-    return run_query_df(query)
-
-
 
 def get_empleados_activos():
     """
@@ -165,6 +148,23 @@ def get_empleados_activos():
         FROM empleados
         WHERE activo = TRUE
         ORDER BY nombre;
+    """
+    return run_query_df(query)
+
+
+def get_stock_resumen():
+    """
+    Resumen de stock actual por producto.
+    """
+    query = """
+        SELECT 
+            p.id_producto,
+            p.nombre,
+            s.stock_actual,
+            s.stock_minimo
+        FROM stock s
+        JOIN productos p ON p.id_producto = s.id_producto
+        ORDER BY p.nombre;
     """
     return run_query_df(query)
 
@@ -273,6 +273,10 @@ def registrar_venta_completa(fecha_hora, servicio, id_empleado, metodo_pago, ite
         conn.close()
 
 
+# =========================
+# Entradas de stock
+# =========================
+
 def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=None, tipo_movimiento="ENTRADA"):
     """
     Registra una entrada de stock (compra, ajuste positivo).
@@ -308,7 +312,7 @@ def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=N
                 (
                     id_producto,
                     tipo_movimiento,
-                    cantidad,  -- entrada: positiva
+                    cantidad,  # entrada: positiva
                     comentario,
                     id_usuario
                 )
