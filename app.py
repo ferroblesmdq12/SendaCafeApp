@@ -1,37 +1,29 @@
-# from services.ui_helpers import mostrar_logo
+# app.py
 
 import streamlit as st
-import plotly.express as px
-from data.ventas_queries import (
-    get_ventas_hoy,
-    get_ventas_mes,
-    get_ticket_promedio_mes,
-    get_unidades_mes,
-    get_ventas_ultimos_30_dias,
-    get_ultimas_ventas
-)
+from services.ui_helpers import logout_button
 
 st.set_page_config(page_title="Senda Café", layout="wide")
+
 st.image("assets/images/Logo_cafe.png", width=120)
+st.title("☕ Bienvenido a Senda Café")
 
+def main():
 
-st.title("☕ Senda Café – Dashboard conectado a AWS RDS")
+    # Si NO está logueado → enviarlo a Login
+    if "user" not in st.session_state or st.session_state["user"] is None:
+        st.info("Para continuar, iniciá sesión desde el menú de la izquierda.")
+        st.page_link("pages/0_Login.py", label="🔐 Ir a iniciar sesión")
+        return
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Ventas HOY", f"${get_ventas_hoy():,.0f}")
-col2.metric("Ventas MES", f"${get_ventas_mes():,.0f}")
-col3.metric("Ticket Promedio", f"${get_ticket_promedio_mes():,.0f}")
-col4.metric("Unidades MES", f"{int(get_unidades_mes()):,}")
+    # Si SÍ está logueado
+    user = st.session_state["user"]
+    st.success(f"Hola {user['nombre']} 👋 – Bienvenido nuevamente.")
 
-st.markdown("---")
+    logout_button()
 
-st.subheader("📈 Ventas últimos 30 días")
-df = get_ventas_ultimos_30_dias()
-if df.empty:
-    st.info("Sin ventas en los últimos 30 días.")
-else:
-    fig = px.line(df, x="fecha", y="total", markers=True)
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("---")
+    st.write("👉 Usá el menú de la izquierda para acceder al dashboard, registrar ventas o gestionar stock.")
 
-st.subheader("🧾 Últimas ventas")
-st.dataframe(get_ultimas_ventas(50), use_container_width=True)
+if __name__ == "__main__":
+    main()
