@@ -2,9 +2,13 @@
 
 import streamlit as st
 from data.usuarios_queries import authenticate
-from services.ui_helpers import logout_button
+from services.ui_helpers import logout_button,sidebar_menu
 
 def main():
+
+    # 🧭 Menú lateral
+    sidebar_menu()
+
     st.title("🔐 Iniciar sesión - Senda Café")
 
     # Si ya está logueado, muestro info y botón de logout
