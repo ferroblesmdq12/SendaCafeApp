@@ -93,18 +93,34 @@ def safe_page_link(page: str, label: str):
 
 def sidebar_menu():
     """
-    Menú lateral común para toda la app.
+    Menú lateral reutilizable para toda la app.
+    Muestra opciones según si hay usuario logueado y su rol.
     """
+    user = st.session_state.get("user")
+
     with st.sidebar:
-        # Logo arriba
-        st.image("assets/images/Logo_cafe.png", width=120)
+        # Logo
+        st.image("assets/images/Logo_cafe.png", width=140)
         st.markdown("### Menú")
 
-        # Links a las páginas principales
-        st.page_link("app.py", label="🏠 Inicio")
-        st.page_link("pages/login.py", label="🔐 Iniciar sesión")
-        st.page_link("pages/dashboard.py", label="📊 Dashboard general")
-        st.page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
-        st.page_link("pages/stock.py", label="📦 Gestión de stock")
+        # Siempre visible
+        safe_page_link("app.py", label="🏠 Inicio")
+
+        if user is None:
+            # No logueado → solo mostrar login
+            safe_page_link("pages/login.py", label="🔐 Iniciar sesión")
+        else:
+            # Logueado → menú de trabajo
+            safe_page_link("pages/dashboard.py", label="📊 Dashboard general")
+            safe_page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
+
+            # Solo admin ve gestión de stock
+            if user.get("rol") == "admin":
+                safe_page_link("pages/stock.py", label="📦 Gestión de stock")
+
+        # Línea separadora estética
+        st.markdown("---")
+        if user is not None:
+            st.caption(f"👤 {user['nombre']} ({user['rol']})")
         # Más adelante acá vamos a agregar:
         # st.page_link("pages/dashboard_empleados.py", label="🧑‍🍳 Empleados y horarios")
