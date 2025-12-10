@@ -91,6 +91,27 @@ def safe_page_link(page: str, label: str):
         # No muestro nada si la página no existe.
         pass
 
+def hide_streamlit_default_nav():
+    """
+    Oculta el navegador de páginas nativo de Streamlit del sidebar.
+    (La parte donde se ven: app, dashboard, login, etc.)
+    """
+    st.markdown(
+        """
+        <style>
+        /* Oculta el bloque de navegación de páginas de Streamlit en el sidebar */
+        section[data-testid="stSidebarNav"] {
+            display: none !important;
+        }
+        div[data-testid="stSidebarNav"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 def sidebar_menu():
     """
     Menú lateral reutilizable para toda la app.
