@@ -68,7 +68,7 @@ def logout_button():
     """
     if st.button("Cerrar sesión"):
         st.session_state["user"] = None
-        st.experimental_rerun()
+        st.rerun()
 
 
 #################
