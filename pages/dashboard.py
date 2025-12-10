@@ -3,7 +3,7 @@
 import streamlit as st
 import plotly.express as px
 
-from services.ui_helpers import require_login, logout_button
+from services.ui_helpers import require_login, logout_button, sidebar_menu
 
 from data.ventas_queries import (
     get_ventas_hoy,
@@ -20,6 +20,9 @@ from data.ventas_queries import (
 st.set_page_config(page_title="Dashboard - Senda Café", layout="wide")
 
 def main():
+     # 🧭 Menú lateral
+    sidebar_menu()
+
     # 🔐 Proteger acceso
     require_login(roles=["admin", "owner"])
 

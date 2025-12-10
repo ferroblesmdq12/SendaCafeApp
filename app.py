@@ -1,7 +1,7 @@
 # app.py
 
 import streamlit as st
-from services.ui_helpers import logout_button
+from services.ui_helpers import logout_button, sidebar_menu
 
 st.set_page_config(page_title="Senda Café", layout="wide")
 
@@ -9,6 +9,12 @@ st.image("assets/images/Logo_cafe.png", width=120)
 st.title("☕ Bienvenido a Senda Café")
 
 def main():
+
+    # ⬅️ Menú lateral siempre visible
+    sidebar_menu()
+
+    st.image("assets/images/Logo_cafe.png", width=120)
+    st.title("☕ Bienvenido a Senda Café")
 
     # Si NO está logueado → enviarlo a Login
     if "user" not in st.session_state or st.session_state["user"] is None:

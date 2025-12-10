@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 
-from services.ui_helpers import require_login, logout_button
+from services.ui_helpers import require_login, logout_button, sidebar_menu
 
 from data.ventas_queries import (
     get_stock_resumen,
@@ -15,8 +15,11 @@ st.set_page_config(page_title="Gestión de Stock - Senda Café", layout="wide")
 
 def main():
 
-    # 🔐 Solo admin puede gestionar stock
-    require_login(roles=["admin"])
+    # 🧭 Menú lateral
+    sidebar_menu()
+    
+    # 🔐 Solo admin + owner puede gestionar stock
+    require_login(roles=["admin","owner"])
 
     st.title("📦 Gestión de Stock")
 

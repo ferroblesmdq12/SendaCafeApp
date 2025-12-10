@@ -1,3 +1,5 @@
+
+#ui_helpers.py
 import streamlit as st
 
 def mostrar_logo():
@@ -67,3 +69,33 @@ def logout_button():
     if st.button("Cerrar sesión"):
         st.session_state["user"] = None
         st.experimental_rerun()
+
+
+#################
+#
+# Barra Lateral
+#
+########
+
+# services/ui_helpers.py
+import streamlit as st
+
+
+
+def sidebar_menu():
+    """
+    Menú lateral común para toda la app.
+    """
+    with st.sidebar:
+        # Logo arriba
+        st.image("assets/images/Logo_cafe.png", width=120)
+        st.markdown("### Menú")
+
+        # Links a las páginas principales
+        st.page_link("app.py", label="🏠 Inicio")
+        st.page_link("pages/0_Login.py", label="🔐 Iniciar sesión")
+        st.page_link("pages/dashboard.py", label="📊 Dashboard general")
+        st.page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
+        st.page_link("pages/stock.py", label="📦 Gestión de stock")
+        # Más adelante acá vamos a agregar:
+        # st.page_link("pages/dashboard_empleados.py", label="🧑‍🍳 Empleados y horarios")

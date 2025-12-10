@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-from services.ui_helpers import require_login, logout_button
+from services.ui_helpers import require_login, logout_button, sidebar_menu
 
 from data.ventas_queries import (
     get_productos_con_stock,
@@ -15,6 +15,9 @@ from data.ventas_queries import (
 st.set_page_config(page_title="Registrar Venta - Senda Café", layout="wide")
 
 def main():
+
+    # 🧭 Menú lateral
+    sidebar_menu()
 
     # 🔐 Permitir admin + dueños
     require_login(roles=["admin", "owner"])
