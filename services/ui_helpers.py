@@ -138,7 +138,7 @@ def sidebar_menu():
             safe_page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
 
             # Solo admin ve gestión de stock
-            if user.get("rol") == "admin" "owner":
+            if user.get("rol") == "admin" or user.get("rol") == "owner":
                 safe_page_link("pages/stock.py", label="📦 Gestión de stock")
 
         # Línea separadora estética
