@@ -13,8 +13,8 @@ def main():
     # ⬅️ Menú lateral siempre visible
     sidebar_menu()
 
-    st.image("assets/images/Logo_cafe.png", width=120)
-    st.title("☕ Bienvenido a Senda Café")
+    # st.image("assets/images/Logo_cafe.png", width=120)
+    # st.title("☕ Bienvenido a Senda Café")
 
     # Si NO está logueado → enviarlo a Login
     if "user" not in st.session_state or st.session_state["user"] is None:
