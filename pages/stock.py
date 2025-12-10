@@ -19,7 +19,7 @@ def main():
     sidebar_menu()
     
     # 🔐 Solo admin + owner puede gestionar stock
-    require_login(roles=["admin","owner"])
+    require_login(roles=["admin", "owner"])
 
     st.title("📦 Gestión de Stock")
 

@@ -93,17 +93,14 @@ def safe_page_link(page: str, label: str):
 
 def hide_streamlit_default_nav():
     """
-    Oculta el navegador de páginas nativo de Streamlit del sidebar.
-    (La parte donde se ven: app, dashboard, login, etc.)
+    Oculta el navegador de páginas nativo de Streamlit del sidebar
+    (la lista 'app / dashboard / login / registrar venta / stock').
     """
     st.markdown(
         """
         <style>
-        /* Oculta el bloque de navegación de páginas de Streamlit en el sidebar */
-        section[data-testid="stSidebarNav"] {
-            display: none !important;
-        }
-        div[data-testid="stSidebarNav"] {
+        /* Cualquier elemento con ese data-testid (nav del multipage) */
+        [data-testid="stSidebarNav"] {
             display: none !important;
         }
         </style>
@@ -112,7 +109,12 @@ def hide_streamlit_default_nav():
     )
 
 
+
 def sidebar_menu():
+
+      # 🔒 Primero ocultamos el nav automático de Streamlit
+    hide_streamlit_default_nav()
+
     """
     Menú lateral reutilizable para toda la app.
     Muestra opciones según si hay usuario logueado y su rol.
@@ -136,7 +138,7 @@ def sidebar_menu():
             safe_page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
 
             # Solo admin ve gestión de stock
-            if user.get("rol") == "admin":
+            if user.get("rol") == "admin" "owner":
                 safe_page_link("pages/stock.py", label="📦 Gestión de stock")
 
         # Línea separadora estética
