@@ -80,7 +80,16 @@ def logout_button():
 # services/ui_helpers.py
 import streamlit as st
 
-
+def safe_page_link(page: str, label: str):
+    """
+    Envuelve st.page_link en un try/except para evitar errores
+    si una página no existe o el nombre es incorrecto.
+    """
+    try:
+        st.page_link(page, label=label)
+    except Exception:
+        # No muestro nada si la página no existe.
+        pass
 
 def sidebar_menu():
     """
@@ -93,7 +102,7 @@ def sidebar_menu():
 
         # Links a las páginas principales
         st.page_link("app.py", label="🏠 Inicio")
-        st.page_link("pages/0_Login.py", label="🔐 Iniciar sesión")
+        st.page_link("pages/login.py", label="🔐 Iniciar sesión")
         st.page_link("pages/dashboard.py", label="📊 Dashboard general")
         st.page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
         st.page_link("pages/stock.py", label="📦 Gestión de stock")

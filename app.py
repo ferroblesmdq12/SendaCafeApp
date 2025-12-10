@@ -19,7 +19,7 @@ def main():
     # Si NO está logueado → enviarlo a Login
     if "user" not in st.session_state or st.session_state["user"] is None:
         st.info("Para continuar, iniciá sesión desde el menú de la izquierda.")
-        st.page_link("pages/0_Login.py", label="🔐 Ir a iniciar sesión")
+        st.page_link("pages/login.py", label="🔐 Ir a iniciar sesión")
         return
 
     # Si SÍ está logueado

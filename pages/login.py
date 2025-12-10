@@ -1,4 +1,4 @@
-# pages/0_Login.py
+# pages/login.py
 
 import streamlit as st
 from data.usuarios_queries import authenticate
