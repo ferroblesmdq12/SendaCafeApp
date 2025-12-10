@@ -28,7 +28,7 @@ def main():
         if user:
             st.session_state["user"] = user
             st.success(f"Bienvenido, {user['nombre']} 👋")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Credenciales incorrectas o usuario inactivo.")
 
