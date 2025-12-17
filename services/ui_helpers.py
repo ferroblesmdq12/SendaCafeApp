@@ -136,6 +136,8 @@ def sidebar_menu():
             # Logueado → menú de trabajo
             safe_page_link("pages/dashboard.py", label="📊 Dashboard general")
             safe_page_link("pages/ventas.py", label="📈 Ventas")
+            safe_page_link("pages/empleados.py", label="🧑‍🍳 Empleados")
+            safe_page_link("pages/ganancias.py", label="💰 Ganancias")
             safe_page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
 
             # Solo admin ve gestión de stock

@@ -518,3 +518,260 @@ def get_top_empleados_filtrado(date_from, date_to, empleados=None, productos=Non
         LIMIT {int(limit)};
     """
     return run_query_df(query, params=params)
+
+
+
+# =========================
+# Empleados (performance)
+# =========================
+
+from datetime import timedelta
+
+def get_empleados_ranking_filtrado(date_from, date_to, productos=None, limit=20):
+    """
+    Ranking de empleados por ventas, tickets y ticket promedio.
+    Filtra por productos (opcional) usando EXISTS para no duplicar tickets.
+    """
+    productos = productos or []
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1]
+    where_extra = ""
+
+    if productos:
+        placeholders = ", ".join(["%s"] * len(productos))
+        params.extend(productos)
+        where_extra += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM ventas_detalle vd
+                WHERE vd.id_venta = v.id_venta
+                  AND vd.id_producto IN ({placeholders})
+            )
+        """
+
+    query = f"""
+        SELECT
+            e.id_empleado,
+            e.nombre AS empleado,
+            e.rol,
+            SUM(v.total_ticket) AS ventas_total,
+            COUNT(*) AS tickets,
+            (SUM(v.total_ticket) / NULLIF(COUNT(*), 0)) AS ticket_promedio
+        FROM ventas v
+        LEFT JOIN empleados e ON e.id_empleado = v.id_empleado
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          {where_extra}
+        GROUP BY e.id_empleado, e.nombre, e.rol
+        ORDER BY ventas_total DESC
+        LIMIT {int(limit)};
+    """
+    return run_query_df(query, params=params)
+
+def get_empleado_resumen_filtrado(date_from, date_to, id_empleado, productos=None):
+    """
+    KPIs de un empleado específico: ventas, tickets, ticket promedio, unidades.
+    Unidades requiere join con ventas_detalle.
+    """
+    productos = productos or []
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1, id_empleado]
+    where_extra = ""
+
+    # filtro por productos (opcional) sobre tickets
+    if productos:
+        placeholders = ", ".join(["%s"] * len(productos))
+        params.extend(productos)
+        where_extra += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM ventas_detalle vd
+                WHERE vd.id_venta = v.id_venta
+                  AND vd.id_producto IN ({placeholders})
+            )
+        """
+
+    query = f"""
+        SELECT
+            COALESCE(SUM(v.total_ticket), 0) AS ventas_total,
+            COALESCE(COUNT(*), 0) AS tickets,
+            COALESCE(AVG(v.total_ticket), 0) AS ticket_promedio,
+            COALESCE((
+                SELECT SUM(vd.cantidad)
+                FROM ventas_detalle vd
+                JOIN ventas v2 ON v2.id_venta = vd.id_venta
+                WHERE v2.fecha_hora >= %s
+                  AND v2.fecha_hora <  %s
+                  AND v2.id_empleado = %s
+            ), 0) AS unidades
+        FROM ventas v
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          AND v.id_empleado = %s
+          {where_extra};
+    """
+    # Nota: reuso de params en subquery + query principal:
+    # params debe tener [from,to,emp, from,to,emp] + productos(opcional) para EXISTS.
+    # Para simplificar, armamos params duplicados:
+    params_base = [date_from, date_to_plus1, id_empleado, date_from, date_to_plus1, id_empleado]
+    if productos:
+        params = params_base + productos
+    else:
+        params = params_base
+
+    return run_query_df(query, params=params)
+
+def get_empleado_ventas_por_dia(date_from, date_to, id_empleado, productos=None):
+    """
+    Serie temporal por día para un empleado. Filtro de productos opcional vía EXISTS.
+    """
+    productos = productos or []
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1, id_empleado]
+    where_extra = ""
+
+    if productos:
+        placeholders = ", ".join(["%s"] * len(productos))
+        params.extend(productos)
+        where_extra += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM ventas_detalle vd
+                WHERE vd.id_venta = v.id_venta
+                  AND vd.id_producto IN ({placeholders})
+            )
+        """
+
+    query = f"""
+        SELECT
+            DATE(v.fecha_hora) AS dia,
+            SUM(v.total_ticket) AS ventas_total,
+            COUNT(*) AS tickets
+        FROM ventas v
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          AND v.id_empleado = %s
+          {where_extra}
+        GROUP BY 1
+        ORDER BY 1;
+    """
+    return run_query_df(query, params=params)
+
+def get_empleado_top_productos(date_from, date_to, id_empleado, limit=10):
+    """
+    Top productos para un empleado dentro del período.
+    """
+    date_to_plus1 = date_to + timedelta(days=1)
+    params = [date_from, date_to_plus1, id_empleado]
+
+    query = f"""
+        SELECT
+            p.nombre AS producto,
+            SUM(vd.cantidad) AS unidades,
+            SUM(vd.subtotal) AS total
+        FROM ventas_detalle vd
+        JOIN ventas v ON v.id_venta = vd.id_venta
+        JOIN productos p ON p.id_producto = vd.id_producto
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          AND v.id_empleado = %s
+        GROUP BY p.nombre
+        ORDER BY unidades DESC
+        LIMIT {int(limit)};
+    """
+    return run_query_df(query, params=params)
+
+
+# =========================
+# Ganancias (Ventas - Costos)
+# =========================
+
+def get_costos_fijos_total_filtrado(date_from, date_to):
+    """
+    Total de costos fijos en el rango. Asume tabla costos_fijos(fecha, monto, ...).
+    Si tu tabla se llama distinto o tiene periodo, lo ajustamos.
+    """
+    date_to_plus1 = date_to + timedelta(days=1)
+    params = [date_from, date_to_plus1]
+
+    query = """
+        SELECT COALESCE(SUM(monto), 0) AS costos_total
+        FROM costos_fijos
+        WHERE fecha >= %s
+          AND fecha <  %s;
+    """
+    return run_query_df(query, params=params)["costos_total"].iloc[0]
+
+def get_costos_fijos_por_dia(date_from, date_to):
+    """
+    Costos por día (si tu tabla registra fecha por imputación).
+    """
+    date_to_plus1 = date_to + timedelta(days=1)
+    params = [date_from, date_to_plus1]
+
+    query = """
+        SELECT
+            DATE(fecha) AS dia,
+            SUM(monto) AS costos_total
+        FROM costos_fijos
+        WHERE fecha >= %s
+          AND fecha <  %s
+        GROUP BY 1
+        ORDER BY 1;
+    """
+    return run_query_df(query, params=params)
+
+def get_ganancias_por_dia(date_from, date_to):
+    """
+    Une ventas por día con costos por día y calcula ganancia.
+    """
+    df_v = get_ventas_resumen_filtrado(date_from, date_to, empleados=[], productos=[])
+    df_c = get_costos_fijos_por_dia(date_from, date_to)
+
+    if df_v.empty and df_c.empty:
+        return df_v  # vacío
+
+    # normalizar columnas
+    if df_v.empty:
+        df_v = df_c[["dia"]].copy()
+        df_v["ventas_total"] = 0
+        df_v["tickets"] = 0
+
+    if df_c.empty:
+        df_c = df_v[["dia"]].copy()
+        df_c["costos_total"] = 0
+
+    df = df_v.merge(df_c, on="dia", how="outer").fillna(0)
+    df["ganancia"] = df["ventas_total"] - df["costos_total"]
+    return df.sort_values("dia")
+
+def get_costos_fijos_total_filtrado(date_from, date_to):
+    date_to_plus1 = date_to + timedelta(days=1)
+    params = [date_from, date_to_plus1]
+    query = """
+        SELECT COALESCE(SUM(monto_ars), 0) AS costos_total
+        FROM costos_fijos
+        WHERE activo = TRUE
+          AND fecha >= %s
+          AND fecha <  %s;
+    """
+    return run_query_df(query, params=params)["costos_total"].iloc[0]
+
+def get_costos_fijos_por_dia(date_from, date_to):
+    date_to_plus1 = date_to + timedelta(days=1)
+    params = [date_from, date_to_plus1]
+    query = """
+        SELECT
+            fecha AS dia,
+            SUM(monto_ars) AS costos_total
+        FROM costos_fijos
+        WHERE activo = TRUE
+          AND fecha >= %s
+          AND fecha <  %s
+        GROUP BY 1
+        ORDER BY 1;
+    """
+    return run_query_df(query, params=params)
