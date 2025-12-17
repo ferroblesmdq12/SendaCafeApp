@@ -324,3 +324,197 @@ def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=N
         raise e
     finally:
         conn.close()
+
+
+# =========================
+# Ventas filtradas (fecha / producto / empleado)
+# =========================
+
+from datetime import timedelta
+
+def _build_in_clause(field: str, values: list, params: list):
+    """
+    Construye un IN dinámico seguro: field IN (%s, %s, ...)
+    y agrega values a params.
+    Devuelve el SQL (string) para concatenar al WHERE.
+    """
+    if not values:
+        return ""
+    placeholders = ", ".join(["%s"] * len(values))
+    params.extend(values)
+    return f" AND {field} IN ({placeholders}) "
+
+def get_catalogo_productos_activos():
+    """
+    Catálogo simple para el filtro (no requiere stock).
+    """
+    query = """
+        SELECT id_producto, nombre
+        FROM productos
+        WHERE activo = TRUE
+        ORDER BY nombre;
+    """
+    return run_query_df(query)
+
+def get_ventas_resumen_filtrado(date_from, date_to, empleados=None, productos=None):
+    """
+    Resumen por día: ventas_total y tickets, filtrando por:
+    - rango de fechas (incluye date_to)
+    - empleados (opcional)
+    - productos (opcional) usando EXISTS para NO duplicar tickets
+    """
+    empleados = empleados or []
+    productos = productos or []
+
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1]
+    where_extra = ""
+
+    # filtro empleados (sobre cabecera)
+    where_extra += _build_in_clause("v.id_empleado", empleados, params)
+
+    # filtro productos (por existencia en detalle)
+    if productos:
+        placeholders = ", ".join(["%s"] * len(productos))
+        params.extend(productos)
+        where_extra += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM ventas_detalle vd
+                WHERE vd.id_venta = v.id_venta
+                  AND vd.id_producto IN ({placeholders})
+            )
+        """
+
+    query = f"""
+        SELECT
+            DATE(v.fecha_hora) AS dia,
+            SUM(v.total_ticket) AS ventas_total,
+            COUNT(*) AS tickets
+        FROM ventas v
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          {where_extra}
+        GROUP BY 1
+        ORDER BY 1;
+    """
+    return run_query_df(query, params=params)
+
+def get_tickets_filtrados(date_from, date_to, empleados=None, productos=None, limit=5000):
+    """
+    Tickets (cabecera) filtrados. Usa EXISTS para productos para evitar duplicados.
+    """
+    empleados = empleados or []
+    productos = productos or []
+
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1]
+    where_extra = ""
+
+    where_extra += _build_in_clause("v.id_empleado", empleados, params)
+
+    if productos:
+        placeholders = ", ".join(["%s"] * len(productos))
+        params.extend(productos)
+        where_extra += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM ventas_detalle vd
+                WHERE vd.id_venta = v.id_venta
+                  AND vd.id_producto IN ({placeholders})
+            )
+        """
+
+    query = f"""
+        SELECT
+            v.id_venta,
+            v.fecha_hora,
+            e.nombre AS empleado,
+            v.servicio,
+            v.metodo_pago,
+            v.total_ticket
+        FROM ventas v
+        LEFT JOIN empleados e ON e.id_empleado = v.id_empleado
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          {where_extra}
+        ORDER BY v.fecha_hora DESC
+        LIMIT {int(limit)};
+    """
+    return run_query_df(query, params=params)
+
+def get_top_productos_filtrado(date_from, date_to, empleados=None, productos=None, limit=10):
+    """
+    Top productos por unidades y total dentro del período y filtros.
+    Si se selecciona productos en el filtro, restringe a esos productos.
+    """
+    empleados = empleados or []
+    productos = productos or []
+
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1]
+    where_extra = ""
+
+    where_extra += _build_in_clause("v.id_empleado", empleados, params)
+    where_extra += _build_in_clause("vd.id_producto", productos, params)
+
+    query = f"""
+        SELECT
+            p.nombre AS producto,
+            SUM(vd.cantidad) AS unidades,
+            SUM(vd.subtotal) AS total
+        FROM ventas_detalle vd
+        JOIN ventas v ON v.id_venta = vd.id_venta
+        JOIN productos p ON p.id_producto = vd.id_producto
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          {where_extra}
+        GROUP BY p.nombre
+        ORDER BY unidades DESC
+        LIMIT {int(limit)};
+    """
+    return run_query_df(query, params=params)
+
+def get_top_empleados_filtrado(date_from, date_to, empleados=None, productos=None, limit=10):
+    """
+    Top empleados por ventas, respetando filtro de productos vía EXISTS.
+    """
+    empleados = empleados or []
+    productos = productos or []
+
+    date_to_plus1 = date_to + timedelta(days=1)
+
+    params = [date_from, date_to_plus1]
+    where_extra = ""
+
+    where_extra += _build_in_clause("v.id_empleado", empleados, params)
+
+    if productos:
+        placeholders = ", ".join(["%s"] * len(productos))
+        params.extend(productos)
+        where_extra += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM ventas_detalle vd
+                WHERE vd.id_venta = v.id_venta
+                  AND vd.id_producto IN ({placeholders})
+            )
+        """
+
+    query = f"""
+        SELECT
+            COALESCE(e.nombre, 'Sin empleado') AS empleado,
+            SUM(v.total_ticket) AS total
+        FROM ventas v
+        LEFT JOIN empleados e ON e.id_empleado = v.id_empleado
+        WHERE v.fecha_hora >= %s
+          AND v.fecha_hora <  %s
+          {where_extra}
+        GROUP BY 1
+        ORDER BY total DESC
+        LIMIT {int(limit)};
+    """
+    return run_query_df(query, params=params)
