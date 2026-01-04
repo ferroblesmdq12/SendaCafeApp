@@ -2,6 +2,11 @@
 
 from data.db import run_query_df, get_connection
 
+# (nuevo) import del servicio de alertas
+from services.alerts import send_stock_critical_email
+
+from datetime import timedelta
+
 # =========================
 # KPIs / Dashboard general
 # =========================
@@ -173,13 +178,22 @@ def get_stock_resumen():
 # Registrar venta completa
 # =========================
 
-def registrar_venta_completa(fecha_hora, servicio, id_empleado, metodo_pago, items, id_usuario=None, ticket_id_origen=None):
+def registrar_venta_completa(
+    fecha_hora,
+    servicio,
+    id_empleado,
+    metodo_pago,
+    items,
+    id_usuario=None,
+    ticket_id_origen=None
+):
     """
     Registra una venta completa:
       - Insert en ventas
       - Inserts en ventas_detalle
       - Descuenta stock en tabla stock
       - Inserta movimientos_stock por cada producto
+      - (nuevo) Detecta stock crítico y envía alerta (anti-spam persistente en DB)
 
     items = lista de dicts:
       [
@@ -188,6 +202,10 @@ def registrar_venta_completa(fecha_hora, servicio, id_empleado, metodo_pago, ite
       ]
     """
     total_ticket = sum(i["cantidad"] * i["precio_unitario"] for i in items)
+
+    # Acá acumulamos alertas detectadas DURANTE la transacción,
+    # y enviamos los mails DESPUÉS del commit (más robusto).
+    alerts_to_send = []
 
     conn = get_connection()
     try:
@@ -239,6 +257,36 @@ def registrar_venta_completa(fecha_hora, servicio, id_empleado, metodo_pago, ite
                     (cant, id_prod)
                 )
 
+                # 2.b2) Chequeo de stock crítico + anti-spam (requiere columnas en stock)
+                # Nota: si aún no ejecutaste el ALTER TABLE, acá fallará.
+                cur.execute(
+                    """
+                    SELECT p.nombre,
+                           s.stock_actual,
+                           s.stock_minimo,
+                           s.alerta_critico_activa
+                    FROM stock s
+                    JOIN productos p ON p.id_producto = s.id_producto
+                    WHERE s.id_producto = %s
+                    FOR UPDATE;
+                    """,
+                    (id_prod,)
+                )
+                nombre_prod, stock_act, stock_min, alert_activa = cur.fetchone()
+
+                if stock_act <= stock_min and not alert_activa:
+                    # marco como alertado para no spamear
+                    cur.execute(
+                        """
+                        UPDATE stock
+                        SET alerta_critico_activa = TRUE,
+                            alerta_critico_activada_en = NOW()
+                        WHERE id_producto = %s;
+                        """,
+                        (id_prod,)
+                    )
+                    alerts_to_send.append((str(nombre_prod), int(stock_act), int(stock_min)))
+
                 # 2.c) Movimiento de stock (venta: cantidad negativa)
                 cur.execute(
                     """
@@ -263,6 +311,14 @@ def registrar_venta_completa(fecha_hora, servicio, id_empleado, metodo_pago, ite
 
             conn.commit()
 
+        # 3) Envío de mails fuera de la transacción
+        for (nombre_prod, stock_act, stock_min) in alerts_to_send:
+            try:
+                send_stock_critical_email(nombre_prod, stock_act, stock_min)
+            except Exception as mail_err:
+                # No rompemos la venta por un mail. Log simple.
+                print(f"[WARN] No se pudo enviar alerta stock crítico: {mail_err}")
+
         return id_venta, total_ticket
 
     except Exception as e:
@@ -281,6 +337,7 @@ def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=N
     """
     Registra una entrada de stock (compra, ajuste positivo).
     Suma al stock_actual y agrega un movimiento_stock.
+    (nuevo) Resetea alerta si deja de estar en estado crítico.
     """
     conn = get_connection()
     try:
@@ -295,6 +352,30 @@ def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=N
                 """,
                 (cantidad, id_producto)
             )
+
+            # Reset de alerta si deja de estar crítico
+            # (requiere columnas alerta_critico_activa / alerta_critico_activada_en)
+            cur.execute(
+                """
+                SELECT stock_actual, stock_minimo, alerta_critico_activa
+                FROM stock
+                WHERE id_producto = %s
+                FOR UPDATE;
+                """,
+                (id_producto,)
+            )
+            stock_act, stock_min, alert_activa = cur.fetchone()
+
+            if stock_act > stock_min and alert_activa:
+                cur.execute(
+                    """
+                    UPDATE stock
+                    SET alerta_critico_activa = FALSE,
+                        alerta_critico_activada_en = NULL
+                    WHERE id_producto = %s;
+                    """,
+                    (id_producto,)
+                )
 
             # Movimiento
             cur.execute(
@@ -319,9 +400,11 @@ def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=N
             )
 
             conn.commit()
+
     except Exception as e:
         conn.rollback()
         raise e
+
     finally:
         conn.close()
 
@@ -329,8 +412,6 @@ def registrar_entrada_stock(id_producto, cantidad, comentario=None, id_usuario=N
 # =========================
 # Ventas filtradas (fecha / producto / empleado)
 # =========================
-
-from datetime import timedelta
 
 def _build_in_clause(field: str, values: list, params: list):
     """
@@ -344,6 +425,7 @@ def _build_in_clause(field: str, values: list, params: list):
     params.extend(values)
     return f" AND {field} IN ({placeholders}) "
 
+
 def get_catalogo_productos_activos():
     """
     Catálogo simple para el filtro (no requiere stock).
@@ -355,6 +437,7 @@ def get_catalogo_productos_activos():
         ORDER BY nombre;
     """
     return run_query_df(query)
+
 
 def get_ventas_resumen_filtrado(date_from, date_to, empleados=None, productos=None):
     """
@@ -401,6 +484,7 @@ def get_ventas_resumen_filtrado(date_from, date_to, empleados=None, productos=No
     """
     return run_query_df(query, params=params)
 
+
 def get_tickets_filtrados(date_from, date_to, empleados=None, productos=None, limit=5000):
     """
     Tickets (cabecera) filtrados. Usa EXISTS para productos para evitar duplicados.
@@ -445,6 +529,7 @@ def get_tickets_filtrados(date_from, date_to, empleados=None, productos=None, li
     """
     return run_query_df(query, params=params)
 
+
 def get_top_productos_filtrado(date_from, date_to, empleados=None, productos=None, limit=10):
     """
     Top productos por unidades y total dentro del período y filtros.
@@ -477,6 +562,7 @@ def get_top_productos_filtrado(date_from, date_to, empleados=None, productos=Non
         LIMIT {int(limit)};
     """
     return run_query_df(query, params=params)
+
 
 def get_top_empleados_filtrado(date_from, date_to, empleados=None, productos=None, limit=10):
     """
@@ -520,12 +606,9 @@ def get_top_empleados_filtrado(date_from, date_to, empleados=None, productos=Non
     return run_query_df(query, params=params)
 
 
-
 # =========================
 # Empleados (performance)
 # =========================
-
-from datetime import timedelta
 
 def get_empleados_ranking_filtrado(date_from, date_to, productos=None, limit=20):
     """
@@ -569,6 +652,7 @@ def get_empleados_ranking_filtrado(date_from, date_to, productos=None, limit=20)
     """
     return run_query_df(query, params=params)
 
+
 def get_empleado_resumen_filtrado(date_from, date_to, id_empleado, productos=None):
     """
     KPIs de un empleado específico: ventas, tickets, ticket promedio, unidades.
@@ -577,13 +661,10 @@ def get_empleado_resumen_filtrado(date_from, date_to, id_empleado, productos=Non
     productos = productos or []
     date_to_plus1 = date_to + timedelta(days=1)
 
-    params = [date_from, date_to_plus1, id_empleado]
-    where_extra = ""
-
     # filtro por productos (opcional) sobre tickets
+    where_extra = ""
     if productos:
         placeholders = ", ".join(["%s"] * len(productos))
-        params.extend(productos)
         where_extra += f"""
             AND EXISTS (
                 SELECT 1
@@ -612,16 +693,14 @@ def get_empleado_resumen_filtrado(date_from, date_to, id_empleado, productos=Non
           AND v.id_empleado = %s
           {where_extra};
     """
-    # Nota: reuso de params en subquery + query principal:
-    # params debe tener [from,to,emp, from,to,emp] + productos(opcional) para EXISTS.
-    # Para simplificar, armamos params duplicados:
-    params_base = [date_from, date_to_plus1, id_empleado, date_from, date_to_plus1, id_empleado]
+
+    # params duplicados para subquery y query principal
+    params = [date_from, date_to_plus1, id_empleado, date_from, date_to_plus1, id_empleado]
     if productos:
-        params = params_base + productos
-    else:
-        params = params_base
+        params.extend(productos)
 
     return run_query_df(query, params=params)
+
 
 def get_empleado_ventas_por_dia(date_from, date_to, id_empleado, productos=None):
     """
@@ -660,6 +739,7 @@ def get_empleado_ventas_por_dia(date_from, date_to, id_empleado, productos=None)
     """
     return run_query_df(query, params=params)
 
+
 def get_empleado_top_productos(date_from, date_to, id_empleado, limit=10):
     """
     Top productos para un empleado dentro del período.
@@ -690,39 +770,34 @@ def get_empleado_top_productos(date_from, date_to, id_empleado, limit=10):
 # =========================
 
 def get_costos_fijos_total_filtrado(date_from, date_to):
-    """
-    Total de costos fijos en el rango. Asume tabla costos_fijos(fecha, monto, ...).
-    Si tu tabla se llama distinto o tiene periodo, lo ajustamos.
-    """
     date_to_plus1 = date_to + timedelta(days=1)
     params = [date_from, date_to_plus1]
-
     query = """
-        SELECT COALESCE(SUM(monto), 0) AS costos_total
+        SELECT COALESCE(SUM(monto_ars), 0) AS costos_total
         FROM costos_fijos
-        WHERE fecha >= %s
+        WHERE activo = TRUE
+          AND fecha >= %s
           AND fecha <  %s;
     """
     return run_query_df(query, params=params)["costos_total"].iloc[0]
 
+
 def get_costos_fijos_por_dia(date_from, date_to):
-    """
-    Costos por día (si tu tabla registra fecha por imputación).
-    """
     date_to_plus1 = date_to + timedelta(days=1)
     params = [date_from, date_to_plus1]
-
     query = """
         SELECT
-            DATE(fecha) AS dia,
-            SUM(monto) AS costos_total
+            fecha AS dia,
+            SUM(monto_ars) AS costos_total
         FROM costos_fijos
-        WHERE fecha >= %s
+        WHERE activo = TRUE
+          AND fecha >= %s
           AND fecha <  %s
         GROUP BY 1
         ORDER BY 1;
     """
     return run_query_df(query, params=params)
+
 
 def get_ganancias_por_dia(date_from, date_to):
     """
@@ -747,31 +822,3 @@ def get_ganancias_por_dia(date_from, date_to):
     df = df_v.merge(df_c, on="dia", how="outer").fillna(0)
     df["ganancia"] = df["ventas_total"] - df["costos_total"]
     return df.sort_values("dia")
-
-def get_costos_fijos_total_filtrado(date_from, date_to):
-    date_to_plus1 = date_to + timedelta(days=1)
-    params = [date_from, date_to_plus1]
-    query = """
-        SELECT COALESCE(SUM(monto_ars), 0) AS costos_total
-        FROM costos_fijos
-        WHERE activo = TRUE
-          AND fecha >= %s
-          AND fecha <  %s;
-    """
-    return run_query_df(query, params=params)["costos_total"].iloc[0]
-
-def get_costos_fijos_por_dia(date_from, date_to):
-    date_to_plus1 = date_to + timedelta(days=1)
-    params = [date_from, date_to_plus1]
-    query = """
-        SELECT
-            fecha AS dia,
-            SUM(monto_ars) AS costos_total
-        FROM costos_fijos
-        WHERE activo = TRUE
-          AND fecha >= %s
-          AND fecha <  %s
-        GROUP BY 1
-        ORDER BY 1;
-    """
-    return run_query_df(query, params=params)
