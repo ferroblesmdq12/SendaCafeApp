@@ -31,5 +31,16 @@ def main():
     st.markdown("---")
     st.write("👉 Usá el menú de la izquierda para acceder al dashboard, registrar ventas o gestionar stock.")
 
+import streamlit as st
+from services.alerts import send_stock_critical_email
+
+st.divider()
+st.subheader("Test Alert Email (solo debug)")
+
+if st.button("TEST SENDGRID"):
+    send_stock_critical_email("TEST SENDGRID", 1, 10)
+    st.success("Se ejecutó el envío (revisar email y Logs).")
+
+
 if __name__ == "__main__":
     main()
