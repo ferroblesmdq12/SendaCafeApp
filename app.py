@@ -75,7 +75,7 @@ def main():
     logout_button()
 
     k = get_env_var("SENDGRID_API_KEY") or ""
-s   t.write("prefix:", k[:3], "len:", len(k), "suffix:", k[-6:])
+    st.write("prefix:", k[:3], "len:", len(k), "suffix:", k[-6:])
 
 
 if __name__ == "__main__":
