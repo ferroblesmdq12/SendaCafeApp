@@ -39,6 +39,7 @@
 import streamlit as st
 from services.ui_helpers import logout_button, sidebar_menu
 from services.alerts import send_stock_critical_email
+from core.config import get_env_var
 
 st.set_page_config(page_title="Senda Café", layout="wide")
 
@@ -48,26 +49,29 @@ def main():
     st.image("assets/images/Logo_cafe.png", width=120)
     st.title("☕ Bienvenido a Senda Café")
 
-    # Test SendGrid SIN romper el arranque
     st.divider()
     st.subheader("🧪 Test SendGrid (debug)")
 
     if st.button("TEST SENDGRID"):
+        # ---- DEBUG: verificar qué key está leyendo Streamlit ----
+        k = get_env_var("SENDGRID_API_KEY") or ""
+        st.write("SENDGRID_API_KEY prefix:", k[:3], "len:", len(k))
+
         try:
             send_stock_critical_email("TEST SENDGRID", 1, 10)
-            st.success("Test disparado. Revisá email (Spam/Promociones) y Logs.")
+            st.success("Test disparado. Revisá email y Logs.")
         except Exception as e:
             st.error("Falló el envío. Revisá los Logs en Streamlit Cloud.")
             st.write(str(e))
 
-    # tu lógica normal
+    # resto de tu lógica normal
     if "user" not in st.session_state or st.session_state["user"] is None:
-        st.info("Para continuar, iniciá sesión desde el menú de la izquierda.")
+        st.info("Para continuar, iniciá sesión desde el menú.")
         st.page_link("pages/login.py", label="🔐 Ir a iniciar sesión")
         return
 
     user = st.session_state["user"]
-    st.success(f"Hola {user['nombre']} 👋 – Bienvenido nuevamente.")
+    st.success(f"Hola {user['nombre']} 👋")
     logout_button()
 
 if __name__ == "__main__":
