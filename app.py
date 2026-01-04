@@ -41,6 +41,25 @@ if st.button("TEST SENDGRID"):
     send_stock_critical_email("TEST SENDGRID", 1, 10)
     st.success("Se ejecutó el envío (revisar email y Logs).")
 
+sg = SendGridAPIClient(api_key)
+try:
+    resp = sg.send(message)
+    print("SENDGRID_STATUS:", resp.status_code)
+    print("SENDGRID_BODY:", resp.body)
+except Exception as e:
+    # Intenta extraer información útil si viene del cliente de SendGrid
+    status = getattr(e, "status_code", None)
+    body = getattr(e, "body", None)
+    headers = getattr(e, "headers", None)
+
+    print("SENDGRID_EXCEPTION:", repr(e))
+    print("SENDGRID_EXCEPTION_STATUS:", status)
+    print("SENDGRID_EXCEPTION_BODY:", body)
+    print("SENDGRID_EXCEPTION_HEADERS:", headers)
+
+    raise RuntimeError(f"SendGrid error al enviar alerta: {repr(e)}")
+
+
 
 if __name__ == "__main__":
     main()
