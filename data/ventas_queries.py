@@ -1,10 +1,6 @@
 # data/ventas_queries.py
 
 from data.db import run_query_df, get_connection
-
-# (nuevo) import del servicio de alertas
-from services.alerts import send_stock_critical_email
-
 from datetime import timedelta
 
 # =========================
