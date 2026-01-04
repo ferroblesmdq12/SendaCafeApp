@@ -66,3 +66,5 @@ def send_stock_critical_email(producto: str, stock_actual: int, stock_minimo: in
         print("SENDGRID_EXCEPTION_HEADERS:", headers)
 
         raise RuntimeError(f"SendGrid error: status={status}, body={body}")
+
+## ---###
