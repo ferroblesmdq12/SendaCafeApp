@@ -36,3 +36,5 @@ def send_stock_critical_email(producto: str, stock_actual: int, stock_minimo: in
         sg.send(message)
     except Exception as e:
         raise RuntimeError(f"SendGrid error al enviar alerta: {e}")
+
+## AUT MAIL
