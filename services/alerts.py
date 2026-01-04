@@ -32,9 +32,18 @@ def send_stock_critical_email(producto: str, stock_actual: int, stock_minimo: in
     )
 
     sg = SendGridAPIClient(api_key)
-    try:
-        sg.send(message)
-    except Exception as e:
-        raise RuntimeError(f"SendGrid error al enviar alerta: {e}")
 
-## AUT MAIL
+    try:
+        resp = sg.send(message)
+        # Esto queda visible en Logs
+        print("SENDGRID_STATUS:", resp.status_code)
+        print("SENDGRID_BODY:", resp.body)
+        return resp.status_code
+
+    except Exception as e:
+        # Esto queda visible en Logs
+        print("SENDGRID_EXCEPTION:", repr(e))
+        print("SENDGRID_EXCEPTION_STATUS:", getattr(e, "status_code", None))
+        print("SENDGRID_EXCEPTION_BODY:", getattr(e, "body", None))
+        print("SENDGRID_EXCEPTION_HEADERS:", getattr(e, "headers", None))
+        raise RuntimeError(f"SendGrid error al enviar alerta: {repr(e)}")
