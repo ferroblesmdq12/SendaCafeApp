@@ -22,10 +22,10 @@ def trigger_stock_alert_lambda() -> tuple[bool, str]:
     No debe romper el flujo de ventas: si falla, devolvemos ok=False y el error.
     """
     url = st.secrets.get("ALERTS_API_URL", "").strip()
-    api_key = st.secrets.get("ALERTS_API_KEY", "").strip()
+    api_key = st.secrets.get("API_KEY", "").strip()
 
     if not url or not api_key:
-        return False, "Faltan ALERTS_API_URL o ALERTS_API_KEY en Streamlit Secrets."
+        return False, "Faltan ALERTS_API_URL o API_KEY en Streamlit Secrets."
 
     # Normalizar: evitar dobles // al hacer POST
     if not url.endswith("/"):
