@@ -3,6 +3,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import requests
 
 from services.ui_helpers import require_login, logout_button, sidebar_menu
 
@@ -14,8 +15,37 @@ from data.ventas_queries import (
 
 st.set_page_config(page_title="Registrar Venta - Senda Café", layout="wide")
 
-def main():
 
+def trigger_stock_alert_lambda() -> tuple[bool, str]:
+    """
+    Dispara la Lambda (Function URL) para evaluar stock crítico y enviar emails.
+    No debe romper el flujo de ventas: si falla, devolvemos ok=False y el error.
+    """
+    url = st.secrets.get("ALERTS_API_URL", "").strip()
+    api_key = st.secrets.get("ALERTS_API_KEY", "").strip()
+
+    if not url or not api_key:
+        return False, "Faltan ALERTS_API_URL o ALERTS_API_KEY en Streamlit Secrets."
+
+    # Normalizar: evitar dobles // al hacer POST
+    if not url.endswith("/"):
+        url = url + "/"
+
+    try:
+        resp = requests.post(
+            url,
+            headers={"x-api-key": api_key},
+            json={"source": "streamlit_sale", "ts": datetime.utcnow().isoformat()},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return False, f"Lambda status={resp.status_code} body={resp.text[:500]}"
+        return True, resp.text
+    except Exception as e:
+        return False, str(e)
+
+
+def main():
     # 🧭 Menú lateral
     sidebar_menu()
 
@@ -51,8 +81,8 @@ def main():
     with col1:
         empleado_sel = st.selectbox(
             "Empleado",
-            options=df_emp["id_empleado"],
-            format_func=lambda x: df_emp.set_index("id_empleado").loc[x, "nombre"]
+            options=df_emp["id_empleado"].tolist(),
+            format_func=lambda x: df_emp.set_index("id_empleado").loc[x, "nombre"],
         )
 
     with col2:
@@ -79,8 +109,8 @@ def main():
         with c1:
             id_prod_sel = st.selectbox(
                 "Producto",
-                options=df_prod["id_producto"],
-                format_func=lambda x: df_prod.set_index("id_producto").loc[x, "nombre"]
+                options=df_prod["id_producto"].tolist(),
+                format_func=lambda x: df_prod.set_index("id_producto").loc[x, "nombre"],
             )
 
         prod_row = df_prod.set_index("id_producto").loc[id_prod_sel]
@@ -93,7 +123,7 @@ def main():
                 min_value=1,
                 max_value=max(stock_disp, 1),
                 value=1,
-                step=1
+                step=1,
             )
 
         with c3:
@@ -101,7 +131,7 @@ def main():
                 "Precio unitario",
                 min_value=0.0,
                 value=precio_sugerido,
-                step=100.0
+                step=100.0,
             )
 
         with c4:
@@ -112,15 +142,17 @@ def main():
         if agregar:
             if stock_disp <= 0:
                 st.error("No hay stock disponible de este producto.")
-            elif cantidad > stock_disp:
+            elif int(cantidad) > stock_disp:
                 st.error("La cantidad supera el stock disponible.")
             else:
-                st.session_state["carrito"].append({
-                    "id_producto": id_prod_sel,
-                    "producto": prod_row["nombre"],
-                    "cantidad": int(cantidad),
-                    "precio_unitario": float(precio_unitario)
-                })
+                st.session_state["carrito"].append(
+                    {
+                        "id_producto": int(id_prod_sel),
+                        "producto": str(prod_row["nombre"]),
+                        "cantidad": int(cantidad),
+                        "precio_unitario": float(precio_unitario),
+                    }
+                )
                 st.success("Producto agregado al ticket.")
 
     # ======================
@@ -130,67 +162,65 @@ def main():
 
     if not carrito:
         st.info("No hay productos en el ticket todavía.")
-    else:
-        df_cart = pd.DataFrame(carrito)
-        df_cart["subtotal"] = df_cart["cantidad"] * df_cart["precio_unitario"]
-        total = df_cart["subtotal"].sum()
+        return
 
-        st.table(df_cart[["producto", "cantidad", "precio_unitario", "subtotal"]])
-        st.markdown(f"### 💰 Total del ticket: ${total:,.2f}")
+    df_cart = pd.DataFrame(carrito)
+    df_cart["subtotal"] = df_cart["cantidad"] * df_cart["precio_unitario"]
+    total = float(df_cart["subtotal"].sum())
 
-        c1, c2, c3 = st.columns([1, 1, 3])
+    st.table(df_cart[["producto", "cantidad", "precio_unitario", "subtotal"]])
+    st.markdown(f"### 💰 Total del ticket: ${total:,.2f}")
 
-        with c1:
-            confirmar = st.button("✅ Confirmar venta")
+    c1, c2, _ = st.columns([1, 1, 3])
 
-        with c2:
-            cancelar = st.button("🗑️ Vaciar ticket")
+    with c1:
+        confirmar = st.button("✅ Confirmar venta")
 
-        if cancelar:
+    with c2:
+        cancelar = st.button("🗑️ Vaciar ticket")
+
+    if cancelar:
+        st.session_state["carrito"] = []
+        st.success("Ticket vaciado.")
+        return
+
+    if confirmar:
+        try:
+            items = [
+                {
+                    "id_producto": int(row["id_producto"]),
+                    "cantidad": int(row["cantidad"]),
+                    "precio_unitario": float(row["precio_unitario"]),
+                }
+                for _, row in df_cart.iterrows()
+            ]
+
+            # 1) Registrar venta en DB
+            id_venta, total_ticket = registrar_venta_completa(
+                fecha_hora=fecha_hora,
+                servicio=servicio,
+                id_empleado=int(empleado_sel),
+                metodo_pago=metodo_pago,
+                items=items,
+                id_usuario=int(user["id_usuario"]),
+                ticket_id_origen=None,
+            )
+
+            # 2) Disparar Lambda (no rompe si falla)
+            ok, msg = trigger_stock_alert_lambda()
+            if not ok:
+                st.warning(f"Venta OK (ID: {id_venta}) pero alerta de stock no se pudo ejecutar: {msg}")
+            else:
+                # opcional: si querés ver el JSON de respuesta:
+                # st.code(msg, language="json")
+                pass
+
+            st.success(f"Venta registrada correctamente (ID: {id_venta}) – Total: ${float(total_ticket):,.2f}")
             st.session_state["carrito"] = []
-            st.success("Ticket vaciado.")
 
-        if confirmar:
-            try:
-                items = [
-                    {
-                        "id_producto": row["id_producto"],
-                        "cantidad": row["cantidad"],
-                        "precio_unitario": row["precio_unitario"],
-                    }
-                    for _, row in df_cart.iterrows()
-                ]
-
-                # 🔐 ahora registramos la venta con el usuario logueado
-                id_venta, total_ticket = registrar_venta_completa(
-                    fecha_hora=fecha_hora,
-                    servicio=servicio,
-                    id_empleado=empleado_sel,
-                    metodo_pago=metodo_pago,
-                    items=items,
-                    id_usuario=user["id_usuario"],  # <--- IMPORTANTE
-                    ticket_id_origen=None,
-                )
-
-                st.success(f"Venta registrada correctamente (ID: {id_venta}) – Total: ${total_ticket:,.2f}")
-                st.session_state["carrito"] = []
-
-            except Exception as e:
-                st.error(f"Error al registrar la venta: {e}")
+        except Exception as e:
+            st.error(f"Error al registrar la venta: {e}")
 
 
 if __name__ == "__main__":
     main()
-
-
-# Cada venta:
-
-# Se guarda en ventas
-
-# Sus detalles en ventas_detalle
-
-# Baja stock en stock
-
-# Crea movimientos en movimientos_stock
-
-# Y tu dashboard va a ver esas ventas automáticamente.
