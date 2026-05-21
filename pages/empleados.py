@@ -16,7 +16,7 @@ st.set_page_config(page_title="Empleados - Senda Café", layout="wide")
 
 def main():
     sidebar_menu()
-    require_login(roles=["admin", "owner"])
+    require_login(roles=["admin", "owner", "viewer"])
 
     st.title("🧑‍🍳 Empleados")
     logout_button()

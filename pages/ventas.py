@@ -19,7 +19,7 @@ st.set_page_config(page_title="Ventas - Senda Café", layout="wide")
 
 def main():
     sidebar_menu()
-    require_login(roles=["admin", "owner"])
+    require_login(roles=["admin", "owner", "viewer"])
 
     st.title("📈 Ventas")
     logout_button()

@@ -24,7 +24,7 @@ def main():
     sidebar_menu()
 
     # 🔐 Proteger acceso
-    require_login(roles=["admin", "owner"])
+    require_login(roles=["admin", "owner", "viewer"])
 
     st.title("📊 Dashboard Senda Café")
 

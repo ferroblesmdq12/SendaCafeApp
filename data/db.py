@@ -1,22 +1,16 @@
-# db.py
-# Conexión reutilizable + helper para DataFrames
-
 import psycopg2
 import pandas as pd
-from core.config import DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_PORT
+from core.config import DATABASE_URL
 
 
 def get_connection():
     """
-    Devuelve una conexión a PostgreSQL en AWS RDS.
+    Devuelve una conexión a PostgreSQL en Neon.
     """
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        port=DB_PORT
-    )
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL no está configurada.")
+
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 

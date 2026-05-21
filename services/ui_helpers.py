@@ -1,6 +1,14 @@
+# services/ui_helpers.py
 
-#ui_helpers.py
 import streamlit as st
+import base64
+
+
+def convert_image_to_base64(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
 
 def mostrar_logo():
     """
@@ -19,7 +27,7 @@ def mostrar_logo():
         unsafe_allow_html=True
     )
 
-    logo_path = "assets/images/Logo_café.png"
+    logo_path = "assets/images/Logo_cafe.png"
 
     st.markdown(
         f"""
@@ -31,32 +39,22 @@ def mostrar_logo():
     )
 
 
-import base64
-
-def convert_image_to_base64(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-
 ###################################################
-#
 # LOGIN
-#
 ###################################################
-
 
 def require_login(roles=None):
     """
-    Usar al comienzo de cada página que quieras proteger.
-    roles = lista de roles permitidos, ej: ["admin", "owner"]
+    Protege páginas según sesión y rol.
+    roles = lista de roles permitidos, ej: ["admin", "owner", "viewer"]
     """
     if "user" not in st.session_state or st.session_state["user"] is None:
         st.error("❌ Debes iniciar sesión para continuar.")
         st.stop()
 
     if roles is not None:
-        rol_usuario = st.session_state["user"]["rol"]
+        rol_usuario = st.session_state["user"].get("rol")
+
         if rol_usuario not in roles:
             st.error("⛔ No tenés permisos para ver esta sección.")
             st.stop()
@@ -71,14 +69,9 @@ def logout_button():
         st.rerun()
 
 
-#################
-#
-# Barra Lateral
-#
-########
-
-# services/ui_helpers.py
-import streamlit as st
+###################################################
+# BARRA LATERAL
+###################################################
 
 def safe_page_link(page: str, label: str):
     """
@@ -88,18 +81,16 @@ def safe_page_link(page: str, label: str):
     try:
         st.page_link(page, label=label)
     except Exception:
-        # No muestro nada si la página no existe.
         pass
+
 
 def hide_streamlit_default_nav():
     """
-    Oculta el navegador de páginas nativo de Streamlit del sidebar
-    (la lista 'app / dashboard / login / registrar venta / stock').
+    Oculta el navegador de páginas nativo de Streamlit.
     """
     st.markdown(
         """
         <style>
-        /* Cualquier elemento con ese data-testid (nav del multipage) */
         [data-testid="stSidebarNav"] {
             display: none !important;
         }
@@ -109,20 +100,22 @@ def hide_streamlit_default_nav():
     )
 
 
-
 def sidebar_menu():
-
-      # 🔒 Primero ocultamos el nav automático de Streamlit
-    hide_streamlit_default_nav()
-
     """
     Menú lateral reutilizable para toda la app.
     Muestra opciones según si hay usuario logueado y su rol.
+
+    Roles:
+    - admin: ve todo
+    - owner: ve todo
+    - viewer: solo lectura / gráficos
     """
+
+    hide_streamlit_default_nav()
+
     user = st.session_state.get("user")
 
     with st.sidebar:
-        # Logo
         st.image("assets/images/Logo_cafe.png", width=140)
         st.markdown("### Menú")
 
@@ -130,23 +123,24 @@ def sidebar_menu():
         safe_page_link("app.py", label="🏠 Inicio")
 
         if user is None:
-            # No logueado → solo mostrar login
             safe_page_link("pages/login.py", label="🔐 Iniciar sesión")
+
         else:
-            # Logueado → menú de trabajo
+            rol = user.get("rol")
+
+            # Páginas de solo lectura / análisis
             safe_page_link("pages/dashboard.py", label="📊 Dashboard general")
             safe_page_link("pages/ventas.py", label="📈 Ventas")
             safe_page_link("pages/empleados.py", label="🧑‍🍳 Empleados")
             safe_page_link("pages/ganancias.py", label="💰 Ganancias")
-            safe_page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
 
-            # Solo admin ve gestión de stock
-            if user.get("rol") == "admin" or user.get("rol") == "owner":
+            # Páginas de escritura/modificación
+            # Solo admin y owner pueden registrar ventas o modificar stock
+            if rol in ["admin", "owner"]:
+                safe_page_link("pages/registrar_venta.py", label="🧾 Registrar venta")
                 safe_page_link("pages/stock.py", label="📦 Gestión de stock")
 
-        # Línea separadora estética
         st.markdown("---")
+
         if user is not None:
             st.caption(f"👤 {user['nombre']} ({user['rol']})")
-        # Más adelante acá vamos a agregar:
-        # st.page_link("pages/dashboard_empleados.py", label="🧑‍🍳 Empleados y horarios")

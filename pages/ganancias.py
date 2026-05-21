@@ -13,7 +13,7 @@ st.set_page_config(page_title="Ganancias - Senda Café", layout="wide")
 
 def main():
     sidebar_menu()
-    require_login(roles=["admin", "owner"])
+    require_login(roles=["admin", "owner", "viewer"])
 
     st.title("💰 Ganancias")
     logout_button()
