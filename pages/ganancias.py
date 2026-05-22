@@ -6,7 +6,7 @@ from services.ui_helpers import require_login, logout_button, sidebar_menu
 from data.ventas_queries import (
     get_ventas_resumen_filtrado,
     get_costos_fijos_total_filtrado,
-    get_ganancias_por_dia,
+    get_ganancias_por_mes,
 )
 
 st.set_page_config(page_title="Ganancias - Senda Café", layout="wide")
@@ -53,8 +53,8 @@ def main():
 
     st.divider()
 
-    st.subheader("📈 Evolución diaria (Ventas vs Costos vs Ganancia)")
-    df = get_ganancias_por_dia(date_from, date_to)
+    st.subheader("📈 Evolución mensual (Ventas vs Costos vs Ganancia)")
+    df = get_ganancias_por_mes(date_from, date_to)
     if df.empty:
         st.info("No hay datos para el período seleccionado.")
         return
@@ -63,15 +63,15 @@ def main():
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        fig = px.line(df, x="dia", y="ventas_total", markers=True)
+        fig = px.line(df, x="mes", y="ventas_total", markers=True)
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:
-        fig = px.line(df, x="dia", y="costos_total", markers=True)
+        fig = px.line(df, x="mes", y="costos_total", markers=True)
         st.plotly_chart(fig, use_container_width=True)
 
     with c3:
-        fig = px.line(df, x="dia", y="ganancia", markers=True)
+        fig = px.line(df, x="mes", y="ganancia", markers=True)
         st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("📋 Tabla")
@@ -80,7 +80,7 @@ def main():
     st.download_button(
         "⬇️ Descargar (CSV)",
         data=df.to_csv(index=False).encode("utf-8"),
-        file_name="ganancias_por_dia.csv",
+        file_name="ganancias_por_mes.csv",
         mime="text/csv",
     )
 

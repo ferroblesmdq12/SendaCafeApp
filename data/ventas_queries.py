@@ -818,3 +818,36 @@ def get_ganancias_por_dia(date_from, date_to):
     df = df_v.merge(df_c, on="dia", how="outer").fillna(0)
     df["ganancia"] = df["ventas_total"] - df["costos_total"]
     return df.sort_values("dia")
+
+def get_ganancias_por_mes(date_from, date_to):
+    """
+    Une ventas por mes con costos por mes y calcula ganancia mensual.
+    """
+    query = """
+        WITH ventas_mes AS (
+            SELECT
+                DATE_TRUNC('month', fecha_hora)::date AS mes,
+                SUM(total_ticket) AS ventas_total
+            FROM ventas
+            WHERE fecha_hora::date BETWEEN %s AND %s
+            GROUP BY 1
+        ),
+        costos_mes AS (
+            SELECT
+                DATE_TRUNC('month', fecha)::date AS mes,
+                SUM(monto_ars) AS costos_total
+            FROM costos_fijos
+            WHERE activo = TRUE
+              AND fecha BETWEEN %s AND %s
+            GROUP BY 1
+        )
+        SELECT
+            COALESCE(v.mes, c.mes) AS mes,
+            COALESCE(v.ventas_total, 0) AS ventas_total,
+            COALESCE(c.costos_total, 0) AS costos_total,
+            COALESCE(v.ventas_total, 0) - COALESCE(c.costos_total, 0) AS ganancia
+        FROM ventas_mes v
+        FULL OUTER JOIN costos_mes c ON c.mes = v.mes
+        ORDER BY mes;
+    """
+    return run_query_df(query, params=[date_from, date_to, date_from, date_to])
