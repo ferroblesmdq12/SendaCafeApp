@@ -125,7 +125,7 @@ SendaCafeApp/
 ## 🔐 Login
 
 ### Vista principal
-![Login](SendaCafeApp/assets/screenshots/invitado/login_1.PNG)
+![Login](assets/screenshots/invitado/login_1.PNG)
 
 ### Inicio de sesión
 ![Login 2](assets/screenshots/invitado/login_2.PNG)
